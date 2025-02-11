@@ -1,0 +1,15 @@
+# Ignore Python virtual environment
+env/
+__pycache__/
+*.pyc
+
+# Ignore Node.js dependencies
+node_modules/
+package-lock.json
+
+# Ignore system files
+.DS_Store
+
+# Ignore uploaded Excel files
+backend/uploads/
+data/
