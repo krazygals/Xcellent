@@ -8,7 +8,13 @@ from rapidfuzz import fuzz, process
 
 # Flask App Setup
 app = Flask(__name__)
-CORS(app, origins=["https://www.xcellentapp.com", "http://localhost:3000"])  # Include localhost for testing React locally
+from flask_cors import CORS
+CORS(app, origins=[
+    "https://www.xcellentupload.com",
+    "https://xcellentupload.com",
+    "https://xcellent-frontend-bice.vercel.app",
+    "http://localhost:3000"
+])
 
 UPLOAD_FOLDER = "uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
