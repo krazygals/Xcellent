@@ -1,106 +1,24 @@
+import json
+import os
+import re
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import os
 import pandas as pd
-from rapidfuzz import process
+from rapidfuzz import fuzz, process
 
+# Flask App Setup
 app = Flask(__name__)
-CORS(app)  # Allow frontend requests
+CORS(app, origins=["https://www.xcellentapp.com", "http://localhost:3000"])  # Include localhost for testing React locally
 
 UPLOAD_FOLDER = "uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-# Ensure uploads folder exists
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
-
-MERGED_DATA_FILE = os.path.join(UPLOAD_FOLDER, "merged_data.xlsx")
 
 @app.route("/")
 def home():
     return "Backend is running!"
-
-# ✅ Dictionary of standardized column names with possible variations
-COLUMN_MAPPINGS = {
-    "higher_ed": {
-        "crsn": ["CRN", "Course ID", "Section Number"],
-        "dept": ["Department", "Dept"],
-        "course_no": ["Course Number", "Course No", "Class Number"],
-        "sect": ["Section", "Sect"],
-        "subject": ["Subject", "Course Subject"],
-        "instructor": ["Instructor", "Faculty Name", "Professor"],
-        "enrollment": ["Enrollment", "Students Enrolled", "Total Enrollment"],
-        "begin_time": ["Start Time", "Begin Time"],
-        "end_time": ["End Time", "Finish Time"],
-        "bld_no": ["Building Number", "Bld No"],
-        "rm_no": ["Room Number", "Rm No"]
-    }
-}
-
-# ✅ Higher Ed Required Columns
-HIGHER_ED_COLUMNS = [
-    "crsn", "dept", "course_no", "sect", "subject", "mon", "tue", "wed", "thur",
-    "fri", "sat", "sun", "week_day", "week_day_bu", "begin_time", "bgn_hrs",
-    "bgn_min", "bgn_dec_time", "end_time", "end_hrs", "end_min", "end_dec_time",
-    "time_in_class", "bld_no", "bld", "bld_id", "rm_no", "capacity_sch",
-    "capacity_astra", "occ_load", "occ_load_final", "delivery_method", "campus",
-    "campus_name", "teach_name", "begin_date", "end_date", "weeks_in_class",
-    "days_in_class", "enrollment_capacity", "enrollment", "dch", "wsch_old",
-    "wsch", "cr_hrs", "crse_title", "room_type", "room_type_bu", "semester",
-    "FCIMCode", "notes", "idinc", "credit hour production"
-]
-
-def find_header_row(file_path):
-    """ Dynamically finds the first row that contains actual column names """
-    df = pd.read_excel(file_path, engine="openpyxl", header=None, dtype=str)
-
-    for i, row in df.iterrows():
-        row_values = row.dropna().astype(str).tolist()  # Remove NaN and convert to strings
-
-        # ✅ If the row contains at least 2 non-empty values, assume it's the header
-        if len(row_values) >= 2:
-            return i  # Use this row as the header
-
-    return 0  # Default to first row if no match is found
-
-
-# ✅ AI-Based Column Matching
-from rapidfuzz import process
-
-from rapidfuzz import process
-
-def match_columns(file_type, uploaded_columns):
-    """ Matches uploaded columns to standardized column names using RapidFuzz and debugging output """
-    matched_columns = {}
-
-    if file_type not in COLUMN_MAPPINGS:
-        print("❌ ERROR: No column mappings found for file type:", file_type)
-        return matched_columns  # No mappings available
-
-    standard_columns = COLUMN_MAPPINGS[file_type]
-
-    print("\n🔍 Uploaded Column Names:", uploaded_columns)  # Debugging Output
-    print("🎯 Standard Column Names:", list(standard_columns.keys()))  # Debugging Output
-
-    for uploaded_col in uploaded_columns:
-        match_result = process.extractOne(uploaded_col.strip().lower(), [col.lower() for col in sum(standard_columns.values(), [])])
-
-        if match_result:
-            best_match, score, *_ = match_result  # Handle extra values
-            print(f"📌 Matching: {uploaded_col} → {best_match} (Score: {score})")  # Debugging Output
-            
-            if score > 70:  # Lowered threshold from 80 to 70 for better flexibility
-                matched_col = [key for key, values in standard_columns.items() if best_match.lower() in [v.lower() for v in values]][0]
-                matched_columns[uploaded_col] = matched_col
-            else:
-                print(f"⚠️ No good match found for: {uploaded_col} (Best score: {score})")  # Show failed matches
-                matched_columns[uploaded_col] = None
-        else:
-            print(f"❌ No match found for: {uploaded_col}")  # Show completely failed matches
-            matched_columns[uploaded_col] = None
-
-    print("✅ Final Mapped Columns:", matched_columns)  # Debugging Output
-    return matched_columns
 
 @app.route("/upload", methods=["POST"])
 def upload_file():
@@ -108,87 +26,115 @@ def upload_file():
         return jsonify({"error": "No file part"}), 400
 
     file = request.files["file"]
-    file_type = request.form.get("file_type")  # "higher_ed" or "lower_ed"
+    
+    try:
+        # ✅ Handle both JSON and form-data for columns
+        user_defined_columns = []
+        if request.is_json:
+            user_defined_columns = request.json.get("columns", [])
+        else:
+            user_defined_columns = json.loads(request.form.get("columns", "[]"))  
 
-    if file.filename == "":
-        return jsonify({"error": "No selected file"}), 400
+        if not user_defined_columns:
+            return jsonify({"error": "Desired column names are required"}), 400
 
-    if file_type not in ["higher_ed", "lower_ed"]:
-        return jsonify({"error": "Invalid file type"}), 400
+        if file.filename == "":
+            return jsonify({"error": "No selected file"}), 400
 
-    if file:
         file_path = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
         file.save(file_path)
 
-        try:
-            # Detect the correct header row
-            header_row = find_header_row(file_path)
+        # Find header row
+        header_row = find_header_row(file_path)
+        df = pd.read_excel(file_path, engine="openpyxl", header=header_row)
 
-            # Read the Excel file using the detected header row
-            df = pd.read_excel(file_path, engine="openpyxl", header=header_row)
+        # Ensure all column names are strings
+        df.columns = df.columns.astype(str)
 
-            # Remove unnecessary rows above the detected header
-            df = df.iloc[header_row:].reset_index(drop=True)
+        # Remove unnamed columns
+        df = df.loc[:, ~df.columns.str.match(r"Unnamed: \d+")]
 
-            # Remove unnamed columns
-            df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
+        # Run Fuzzy Matching
+        matched_columns = match_columns(df.columns.tolist(), user_defined_columns)
 
-            # Strip spaces from column names to clean them
-            df.columns = df.columns.str.strip()
+        return jsonify({
+            "message": "File uploaded and column matches suggested!",
+            "processed_file_path": file_path,
+            "suggested_matches": matched_columns
+        }), 200
 
-            # AI-based column name recognition
-            mapped_columns = match_columns(file_type, df.columns)
-            df.rename(columns=mapped_columns, inplace=True)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-            # Ensure all required columns exist
-            for col in HIGHER_ED_COLUMNS:
-                if col not in df.columns:
-                    df[col] = None  # Add missing columns
+def find_header_row(file_path):
+    """Automatically detects the first row with actual data and uses it as headers"""
+    df = pd.read_excel(file_path, engine="openpyxl", header=None, dtype=str)
 
-            # Reorder columns
-            df = df[HIGHER_ED_COLUMNS]
+    for i, row in df.iterrows():
+        row_values = row.dropna().astype(str).tolist()
+        if len(row_values) > 3 and not any("Applied filters" in val for val in row_values):
+            return i
 
-            # Save processed data
-            processed_file_path = os.path.join(app.config["UPLOAD_FOLDER"], "processed_" + file.filename)
-            df.to_excel(processed_file_path, index=False)
+    return 0  # Default to first row if no valid header found
 
-            return jsonify({
-                "message": "File processed and formatted successfully",
-                "processed_file_path": processed_file_path,
-                "mapped_columns": mapped_columns
-            }), 200
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-            
-def merge_data(new_file_path):
-    """ Merge uploaded file with existing dataset """
-    new_df = pd.read_excel(new_file_path, engine="openpyxl")
+def clean_column_name(name):
+    """Normalize column names for better matching."""
+    name = name.lower().strip()  
+    name = re.sub(r'[^a-z0-9]', ' ', name)  
+    name = re.sub(r'\s+', ' ', name)  
+    return name.strip()
 
-    # If no merged data exists, create a new file
-    if not os.path.exists(MERGED_DATA_FILE):
-        new_df.to_excel(MERGED_DATA_FILE, index=False)
-        return "New dataset created"
+    manual_mappings = {
+        "crsn": ["sections_id", "section", "crn"],  # ✅ Maps to "SECTIONS_ID"
+        "course_no": ["section_name", "course id", "class id"],  # ✅ Maps to "SECTION_NAME"
+        "teach_name": ["faculty_name", "instructor", "faculty", "teach name"],  # ✅ Maps to "FACULTY_NAME"
+        "enrollment": ["enrolled", "students"],  # ✅ Maps to "ENROLLED"
+        "begin_time": ["start time", "begin time", "start_time1"],  # ✅ Maps to "START_TIME1"
+        "end_time": ["end time", "finish time", "end_time1"]  # ✅ Maps to "END_TIME1"
+    }
 
-    # Load existing merged data
-    existing_df = pd.read_excel(MERGED_DATA_FILE, engine="openpyxl")
+def match_columns(uploaded_columns, user_defined_columns):
+    """Matches uploaded columns to user-defined columns using manual mappings first, then fuzzy logic."""
+    matched_columns = {}
 
-    # ✅ Merge on room number (rm_no) and course number (crsn)
-    merged_df = pd.merge(existing_df, new_df, on=["rm_no", "crsn"], how="outer")
+    manual_mappings = {
+        "crsn": ["sections_id", "section", "crn"],  # ✅ Maps to "SECTIONS_ID"
+        "course_no": ["section_name", "course id", "class id"],  # ✅ Maps to "SECTION_NAME"
+        "teach_name": ["faculty_name", "instructor", "faculty", "teach name"],  # ✅ Maps to "FACULTY_NAME"
+        "enrollment": ["enrolled", "students"],  # ✅ Maps to "ENROLLED"
+        "begin_time": ["start time", "begin time", "start_time1"],  # ✅ Maps to "START_TIME1"
+        "end_time": ["end time", "finish time", "end_time1"]  # ✅ Maps to "END_TIME1"
+    }
+    
+    # ✅ Normalize uploaded column names
+    uploaded_columns_cleaned = {clean_column_name(col): col for col in uploaded_columns}
+    user_defined_cleaned = [clean_column_name(col) for col in user_defined_columns]
 
-    # Save merged dataset
-    merged_df.to_excel(MERGED_DATA_FILE, index=False)
-    return "Data merged successfully"
+    for user_col in user_defined_cleaned:
+        found_match = None
 
-@app.route("/merge", methods=["POST"])
-def merge_uploaded_file():
-    file_path = request.json.get("file_path")
+        # ✅ Manual Mapping Check (Now Uses Correct Lookup)
+        for standard_col, synonyms in manual_mappings.items():
+            if clean_column_name(user_col) == clean_column_name(standard_col):  # ✅ Direct match with key
+                for uploaded_cleaned, uploaded_original in uploaded_columns_cleaned.items():
+                    if uploaded_cleaned in [clean_column_name(x) for x in synonyms]:  # ✅ Check synonyms
+                        found_match = uploaded_original
+                        break
+            if found_match:
+                break  # ✅ Exit loop once manual match is found
 
-    if not file_path or not os.path.exists(file_path):
-        return jsonify({"error": "Invalid file path"}), 400
+        # ✅ Fuzzy Match as Fallback (Only If Manual Mapping Fails)
+        if not found_match:
+            match_result = process.extractOne(user_col, list(uploaded_columns_cleaned.keys()), scorer=fuzz.ratio)
+            if match_result:  # Ensure we have a valid match
+                best_match, score = match_result[:2]  # Extract only 2 values
+                if score > 70:
+                    found_match = uploaded_columns_cleaned[best_match]
 
-    message = merge_data(file_path)
+        # ✅ Assign the best match found
+        matched_columns[user_col] = found_match if found_match else "❌ No match found"
 
-    return jsonify({"message": message, "merged_data_path": MERGED_DATA_FILE}), 200
+    return matched_columns
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=8080, debug=True)
