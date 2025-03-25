@@ -13,3 +13,11 @@ package-lock.json
 # Ignore uploaded Excel files
 backend/uploads/
 data/
+
+# Ignore Environment Variables file
+.env
+
+# Ignore frontend folder if it's outside the backend folder
+../frontend/
+
+AI/
