@@ -28,6 +28,8 @@ def home():
 
 @app.route("/upload", methods=["POST"])
 def upload_file():
+    print("🔍 Incoming request data:", request.data)  # Logs the raw request data
+    print("🔍 Request headers:", request.headers)
     if "file" not in request.files:
         return jsonify({"error": "No file part"}), 400
 
