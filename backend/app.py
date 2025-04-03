@@ -74,6 +74,28 @@ def upload_file():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/match-columns', methods=["POST"])
+def match_user_columns():
+    try:
+        data = request.get_json()
+        user_defined_columns = data.get("user_columns", [])
+
+        # Simulate a dummy uploaded Excel file for test-matching
+        dummy_uploaded_columns = [
+            "SECTIONS_ID", "SECTION_NAME", "FACULTY_NAME",
+            "ENROLLED", "START_TIME1", "END_TIME1"
+        ]
+
+        matched_columns = match_columns(dummy_uploaded_columns, user_defined_columns)
+
+        return jsonify({
+            "message": "Column matches suggested!",
+            "suggested_matches": matched_columns
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 def find_header_row(file_path):
     """Automatically detects the first row with actual data and uses it as headers"""
     df = pd.read_excel(file_path, engine="openpyxl", header=None, dtype=str)
