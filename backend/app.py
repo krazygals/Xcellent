@@ -62,6 +62,9 @@ def upload_file():
         # Remove unnamed columns
         df = df.loc[:, ~df.columns.str.match(r"Unnamed: \d+")]
 
+        print("📥 Uploaded Excel Columns:", df.columns.tolist())
+        print("📤 User-defined SQL Columns (raw):", user_defined_columns)
+
         # Run Fuzzy Matching
         matched_columns = match_columns(df.columns.tolist(), user_defined_columns)
 
@@ -114,55 +117,27 @@ def clean_column_name(name):
     name = re.sub(r'\s+', ' ', name)  
     return name.strip()
 
-    manual_mappings = {
-        "crsn": ["sections_id", "section", "crn"],  # ✅ Maps to "SECTIONS_ID"
-        "course_no": ["section_name", "course id", "class id"],  # ✅ Maps to "SECTION_NAME"
-        "teach_name": ["faculty_name", "instructor", "faculty", "teach name"],  # ✅ Maps to "FACULTY_NAME"
-        "enrollment": ["enrolled", "students"],  # ✅ Maps to "ENROLLED"
-        "begin_time": ["start time", "begin time", "start_time1"],  # ✅ Maps to "START_TIME1"
-        "end_time": ["end time", "finish time", "end_time1"]  # ✅ Maps to "END_TIME1"
-    }
-
 def match_columns(uploaded_columns, user_defined_columns):
-    """Matches uploaded columns to user-defined columns using manual mappings first, then fuzzy logic."""
+    """Matches uploaded columns to user-defined columns using fuzzy matching only."""
     matched_columns = {}
 
-    manual_mappings = {
-        "crsn": ["sections_id", "section", "crn"],  # ✅ Maps to "SECTIONS_ID"
-        "course_no": ["section_name", "course id", "class id"],  # ✅ Maps to "SECTION_NAME"
-        "teach_name": ["faculty_name", "instructor", "faculty", "teach name"],  # ✅ Maps to "FACULTY_NAME"
-        "enrollment": ["enrolled", "students"],  # ✅ Maps to "ENROLLED"
-        "begin_time": ["start time", "begin time", "start_time1"],  # ✅ Maps to "START_TIME1"
-        "end_time": ["end time", "finish time", "end_time1"]  # ✅ Maps to "END_TIME1"
-    }
-    
-    # ✅ Normalize uploaded column names
+    # Normalize uploaded column names
     uploaded_columns_cleaned = {clean_column_name(col): col for col in uploaded_columns}
     user_defined_cleaned = [clean_column_name(col) for col in user_defined_columns]
 
-    for user_col in user_defined_cleaned:
-        found_match = None
+    print("🧼 Cleaned Uploaded Columns:", list(uploaded_columns_cleaned.keys()))
+    print("🧼 Cleaned SQL Columns:", user_defined_cleaned)
 
-        # ✅ Manual Mapping Check (Now Uses Correct Lookup)
-        for standard_col, synonyms in manual_mappings.items():
-            if clean_column_name(user_col) == clean_column_name(standard_col):  # ✅ Direct match with key
-                for uploaded_cleaned, uploaded_original in uploaded_columns_cleaned.items():
-                    if uploaded_cleaned in [clean_column_name(x) for x in synonyms]:  # ✅ Check synonyms
-                        found_match = uploaded_original
-                        break
-            if found_match:
-                break  # ✅ Exit loop once manual match is found
-
-        # ✅ Fuzzy Match as Fallback (Only If Manual Mapping Fails)
-        if not found_match:
-            match_result = process.extractOne(user_col, list(uploaded_columns_cleaned.keys()), scorer=fuzz.ratio)
-            if match_result:  # Ensure we have a valid match
-                best_match, score = match_result[:2]  # Extract only 2 values
-                if score > 70:
-                    found_match = uploaded_columns_cleaned[best_match]
-
-        # ✅ Assign the best match found
-        matched_columns[user_col] = found_match if found_match else "❌ No match found"
+    for user_cleaned, original_user in zip(user_defined_cleaned, user_defined_columns):
+        match_result = process.extractOne(user_cleaned, list(uploaded_columns_cleaned.keys()), scorer=fuzz.ratio)
+        if match_result:
+            best_match, score = match_result[:2]
+            if score > 70:
+                matched_columns[original_user] = uploaded_columns_cleaned[best_match]
+            else:
+                matched_columns[original_user] = "❌ No match found"
+        else:
+            matched_columns[original_user] = "❌ No match found"
 
     return matched_columns
 
