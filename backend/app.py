@@ -117,27 +117,44 @@ def clean_column_name(name):
     name = re.sub(r'\s+', ' ', name)  
     return name.strip()
 
-def match_columns(uploaded_columns, user_defined_columns):
-    """Matches uploaded columns to user-defined columns using fuzzy matching only."""
+from sentence_transformers import SentenceTransformer, util
+
+# Load the model once (top of your app.py)
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+from sentence_transformers import util
+
+def clean_col(col):
+    return col.lower().replace("_", " ").strip()
+
+def match_columns(uploaded_columns, user_defined_columns, threshold=0.6):
+    """Matches uploaded columns to user-defined columns using semantic similarity via Sentence Transformers."""
     matched_columns = {}
 
-    # Normalize uploaded column names
-    uploaded_columns_cleaned = {clean_column_name(col): col for col in uploaded_columns}
-    user_defined_cleaned = [clean_column_name(col) for col in user_defined_columns]
+    # Clean both sets
+    uploaded_clean = [clean_col(col) for col in uploaded_columns]
+    user_clean = [clean_col(col) for col in user_defined_columns]
 
-    print("🧼 Cleaned Uploaded Columns:", list(uploaded_columns_cleaned.keys()))
-    print("🧼 Cleaned SQL Columns:", user_defined_cleaned)
+    # Encode
+    uploaded_embeddings = model.encode(uploaded_clean, convert_to_tensor=True)
+    user_embeddings = model.encode(user_clean, convert_to_tensor=True)
 
-    for user_cleaned, original_user in zip(user_defined_cleaned, user_defined_columns):
-        match_result = process.extractOne(user_cleaned, list(uploaded_columns_cleaned.keys()), scorer=fuzz.ratio)
-        if match_result:
-            best_match, score = match_result[:2]
-            if score > 70:
-                matched_columns[original_user] = uploaded_columns_cleaned[best_match]
-            else:
-                matched_columns[original_user] = "❌ No match found"
+    # Match each user column to the closest uploaded one
+    for i, user_col in enumerate(user_clean):
+        similarities = util.cos_sim(user_embeddings[i], uploaded_embeddings)[0]
+        best_match_idx = similarities.argmax().item()
+        score = similarities[best_match_idx].item()
+
+        original_user_col = user_defined_columns[i]
+        original_uploaded_col = uploaded_columns[best_match_idx]
+
+        # Log for debugging
+        print(f"{original_user_col} → {original_uploaded_col} | Score: {score:.4f}")
+
+        if score > threshold:
+            matched_columns[original_user_col] = original_uploaded_col
         else:
-            matched_columns[original_user] = "❌ No match found"
+            matched_columns[original_user_col] = "❌ No match found"
 
     return matched_columns
 
