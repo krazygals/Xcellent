@@ -4,20 +4,23 @@ import re
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pandas as pd
-import faiss
+from rapidfuzz import fuzz
+from rapidfuzz.distance import Levenshtein
+import faiss # type: ignore
 print("FAISS version:", faiss.__version__)
 import numpy as np
 from sentence_transformers import SentenceTransformer, util
 model = SentenceTransformer('BAAI/bge-base-en-v1.5')
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics import jaccard_score
-import psycopg2
+import psycopg2 # type: ignore
 from flask import send_file
 from io import BytesIO
 
 
 # Flask App Setup
 app = Flask(__name__)
+from flask_cors import CORS
 CORS(app, origins=[
     "https://www.xcellentupload.com",
     "https://xcellentupload.com",

@@ -5,4 +5,5 @@ openpyxl
 rapidfuzz
 gunicorn
 sentence-transformers
-faiss-cpu
+faiss-cpu @ https://github.com/facebookresearch/faiss/releases/download/v1.7.4/faiss-1.7.4-cp311-cp311-manylinux2014_x86_64.whl
+
