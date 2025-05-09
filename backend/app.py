@@ -2,7 +2,7 @@ import json
 import os
 import re
 from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
 import pandas as pd
 from rapidfuzz import fuzz
 from rapidfuzz.distance import Levenshtein
@@ -42,6 +42,7 @@ faiss_index = None
 faiss_column_names = []
 
 @app.route("/upload", methods=["POST"])
+@cross_origin(origins=["https://xcellentupload.com", "https://www.xcellentupload.com"])
 def upload_file():
     print("🔍 Request method:", request.method)
     print("🔍 Request content-type:", request.content_type)
