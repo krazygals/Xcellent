@@ -21,12 +21,7 @@ import traceback
 
 # Flask App Setup
 app = Flask(__name__)
-CORS(app, origins=[
-    "https://www.xcellentupload.com",
-    "https://xcellentupload.com",
-    "https://xcellent-frontend-bice.vercel.app",
-    "http://localhost:3000"
-])
+CORS(app, origins="*", supports_credentials=True)
 
 UPLOAD_FOLDER = "uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
