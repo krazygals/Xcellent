@@ -20,7 +20,6 @@ from io import BytesIO
 
 # Flask App Setup
 app = Flask(__name__)
-from flask_cors import CORS
 CORS(app, origins=[
     "https://www.xcellentupload.com",
     "https://xcellentupload.com",
@@ -42,27 +41,28 @@ faiss_index = None
 faiss_column_names = []
 
 @app.route("/upload", methods=["POST"])
-@cross_origin(origins=["https://xcellentupload.com", "https://www.xcellentupload.com"])
 def upload_file():
-    print("🔍 Request method:", request.method)
-    print("🔍 Request content-type:", request.content_type)
-    print("🔍 request.files:", request.files)
-    print("🔍 request.form:", request.form)
-    print("🔍 request.json:", request.get_json(silent=True))
-    print("🔍 Incoming request data:", request.data)  # Logs the raw request data
-    print("🔍 Request headers:", request.headers)
-    global faiss_index, faiss_column_names
-    if "file" not in request.files:
-        return jsonify({"error": "No file part"}), 400
-
-    file = request.files["file"]
-
-    # Guard against missing or empty columns input
-    if not request.form.get("columns") and not request.is_json:
-        return jsonify({"error": "Missing or invalid column input"}), 400
-
-    
     try:
+        print("🔍 Entered /upload route")
+        print("🔍 Request method:", request.method)
+        print("🔍 Request content-type:", request.content_type)
+        print("🔍 request.files:", request.files)
+        print("🔍 request.form:", request.form)
+        print("🔍 request.json:", request.get_json(silent=True))
+        print("🔍 Incoming request data:", request.data)
+        print("🔍 Request headers:", request.headers)
+
+        global faiss_index, faiss_column_names
+
+        if "file" not in request.files:
+            return jsonify({"error": "No file part"}), 400
+
+        file = request.files["file"]
+
+        # Guard against missing or empty columns input
+        if not request.form.get("columns") and not request.is_json:
+            return jsonify({"error": "Missing or invalid column input"}), 400
+
         # ✅ Handle both JSON and form-data for columns
         user_defined_columns = []
         if request.is_json:
@@ -110,6 +110,7 @@ def upload_file():
         }), 200
 
     except Exception as e:
+        print("🔥 Crash in upload route:", str(e))
         return jsonify({"error": str(e)}), 500
 
 def jaccard_similarity(str1, str2):
