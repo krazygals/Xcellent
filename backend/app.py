@@ -16,6 +16,7 @@ from sklearn.metrics import jaccard_score
 import psycopg2 # type: ignore
 from flask import send_file
 from io import BytesIO
+import traceback
 
 
 # Flask App Setup
@@ -111,6 +112,7 @@ def upload_file():
 
     except Exception as e:
         print("🔥 Crash in upload route:", str(e))
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 def jaccard_similarity(str1, str2):
