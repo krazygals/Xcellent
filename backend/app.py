@@ -75,7 +75,7 @@ def upload_file():
         file_path = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
         if not os.path.exists(UPLOAD_FOLDER):
             os.makedirs(UPLOAD_FOLDER)
-            
+
         file.save(file_path)
 
         # Find header row
@@ -94,7 +94,7 @@ def upload_file():
         print("📤 User-defined SQL Columns (raw):", user_defined_columns)
 
         # 🆕 Build FAISS index
-        embeddings = model.encode(detected_headers)
+        embeddings = model.encode(detected_headers, batch_size=2, show_progress_bar=False)
         dimension = embeddings.shape[1]
         faiss_index = faiss.IndexFlatL2(dimension)
         faiss_index.add(np.array(embeddings))
