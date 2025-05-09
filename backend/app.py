@@ -31,9 +31,6 @@ CORS(app, origins=[
 UPLOAD_FOLDER = "uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
-
 @app.route("/")
 def home():
     return "Backend is running!"
@@ -76,6 +73,9 @@ def upload_file():
             return jsonify({"error": "No selected file"}), 400
 
         file_path = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
+        if not os.path.exists(UPLOAD_FOLDER):
+            os.makedirs(UPLOAD_FOLDER)
+            
         file.save(file_path)
 
         # Find header row
