@@ -55,6 +55,11 @@ def upload_file():
         return jsonify({"error": "No file part"}), 400
 
     file = request.files["file"]
+
+    # Guard against missing or empty columns input
+    if not request.form.get("columns") and not request.is_json:
+        return jsonify({"error": "Missing or invalid column input"}), 400
+
     
     try:
         # ✅ Handle both JSON and form-data for columns
